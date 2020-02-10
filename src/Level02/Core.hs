@@ -11,15 +11,17 @@ import Data.Either (either)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8)
 import Level02.Types
-  ( ContentType,
-    Error,
-    RqType,
+  ( ContentType(..),
+    Error(..),
+    RqType(..),
     mkCommentText,
     mkTopic,
     renderContentType,
+    getTopic
   )
 import Network.HTTP.Types
   ( Status,
+    Header,
     hContentType,
     status200,
     status400,
@@ -46,29 +48,34 @@ mkResponse ::
   ContentType ->
   LBS.ByteString ->
   Response
-mkResponse =
-  error "mkResponse not implemented"
+mkResponse status contentType s =
+  let
+    contentTypeHeader :: Header
+    contentTypeHeader = ("Content-Type", renderContentType contentType)
+  in
+    responseLBS status [contentTypeHeader] s
+
 
 resp200 ::
   ContentType ->
   LBS.ByteString ->
   Response
 resp200 =
-  error "resp200 not implemented"
+  mkResponse status200
 
 resp404 ::
   ContentType ->
   LBS.ByteString ->
   Response
 resp404 =
-  error "resp404 not implemented"
+  mkResponse status404
 
 resp400 ::
   ContentType ->
   LBS.ByteString ->
   Response
 resp400 =
-  error "resp400 not implemented"
+  mkResponse status400
 
 -- | ----------------------------------------------------------------------------------
 --  These next few functions will take raw request information and construct         --
@@ -83,8 +90,18 @@ mkAddRequest ::
   Text ->
   LBS.ByteString ->
   Either Error RqType
-mkAddRequest =
-  error "mkAddRequest not implemented"
+mkAddRequest txt lbs =
+  let
+    eitherTopic = mkTopic txt
+    eitherCommentText = mkCommentText $ lazyByteStringToStrictText lbs
+  in
+    case (eitherTopic, eitherCommentText) of
+      (Right topic, Right commentText) ->
+        Right $ AddRq topic commentText
+      (Left topicError, _) ->
+        Left topicError
+      (_, Left commentError) ->
+        Left commentError
   where
     -- This is a helper function to assist us in going from a Lazy ByteString, to a Strict Text
     lazyByteStringToStrictText =
@@ -93,13 +110,20 @@ mkAddRequest =
 mkViewRequest ::
   Text ->
   Either Error RqType
-mkViewRequest =
-  error "mkViewRequest not implemented"
+mkViewRequest topicName =
+  let
+    eitherTopic = mkTopic topicName
+  in
+    case eitherTopic of
+      Left _ ->
+        Left MissingTopicError
+      Right topic ->
+        Right $ ViewRq topic
 
 mkListRequest ::
   Either Error RqType
 mkListRequest =
-  error "mkListRequest not implemented"
+  Right ListRq
 
 -- | ----------------------------------
 --  end of RqType creation functions --
@@ -107,8 +131,17 @@ mkListRequest =
 mkErrorResponse ::
   Error ->
   Response
-mkErrorResponse =
-  error "mkErrorResponse not implemented"
+mkErrorResponse e =
+  case e of
+    MissingTopicError ->
+      resp404 ContentTypeText "Missing topic"
+    EmptyTopicError ->
+      resp400 ContentTypeText "Empty topic"
+    EmptyCommentError ->
+      resp400 ContentTypeText "Empty Comment Text"
+    RoutingError ->
+      resp404 ContentTypeText "Unknown route"
+
 
 -- | Use our ``RqType`` helpers to write a function that will take the input
 -- ``Request`` from the Wai library and turn it into something our application
@@ -116,10 +149,19 @@ mkErrorResponse =
 mkRequest ::
   Request ->
   IO (Either Error RqType)
-mkRequest =
-  -- Remembering your pattern-matching skills will let you implement the entire
-  -- specification in this function.
-  error "mkRequest not implemented"
+mkRequest request = do
+  body <- strictRequestBody request
+  let path = pathInfo request
+  return $ case path of
+    [topicName, "add"] ->
+      mkAddRequest topicName body
+    [topicName, "view"] ->
+      mkViewRequest topicName
+    ["list"] ->
+      mkListRequest
+    _ ->
+      Left RoutingError
+
 
 -- | If we find that we need more information to handle a request, or we have a
 -- new type of request that we'd like to handle then we update the ``RqType``
@@ -135,14 +177,29 @@ mkRequest =
 handleRequest ::
   RqType ->
   Either Error Response
-handleRequest =
-  error "handleRequest not implemented"
+handleRequest rqType =
+  case rqType of
+    AddRq _topic _commentText ->
+      Right $ resp200 ContentTypeText "AddRq not implemented yet"
+    ViewRq _topic ->
+      Right $ resp200 ContentTypeText "ViewRq not implemented yet"
+    ListRq ->
+      Right $ resp200 ContentTypeText "ListRq not implemented yet"
 
 -- | Reimplement this function using the new functions and ``RqType`` constructors as a guide.
 app ::
   Application
-app =
-  error "app not reimplemented"
+app request respond = do
+  eReqType <- mkRequest request
+  case eReqType of
+    Right reqType ->
+      case handleRequest reqType of
+        Right processedRequest ->
+          respond processedRequest
+        Left err ->
+          respond $ mkErrorResponse err
+    Left err ->
+      respond $ mkErrorResponse err
 
 runApp :: IO ()
 runApp = run 3000 app

@@ -7,3 +7,6 @@ import qualified Level01.Core as Core
 -- affair.
 main :: IO ()
 main = Core.runApp
+
+hello :: String -> String
+hello h = "Hello"

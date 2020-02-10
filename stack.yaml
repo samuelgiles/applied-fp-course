@@ -11,3 +11,5 @@ extra-deps:
 - sop-core-0.4.0.0
 - generics-sop-0.4.0.1
 - witherable-0.2
+- hedgehog-1.0.1@sha256:b65b1ebde7b7fe8e693070916e45aa2ed63eea5e3f84ac3a8f9a0b7f8fcf0337,4465
+- tasty-hedgehog-1.0.0.1@sha256:f632aa57399fbd9a0910757bd550e702e13752f9fd1fced0cc9e6b54dd49c7d8,1823
