@@ -40,7 +40,12 @@ module Main where
 -- This import is provided for you so you can check your work from Level02. As
 -- you move forward, come back and import your latest 'Application' so that you
 -- can test your work as you progress.
-import qualified Level02.Core as Core
+import qualified Level05.Core as Core
+import qualified Level05.DB as DB
+import Data.Either
+  ( either,
+  )
+import Control.Exception (bracket)
 import Network.HTTP.Types as HTTP
 import Test.Tasty (defaultMain, testGroup)
 import Test.Tasty.Wai
@@ -52,14 +57,24 @@ import Test.Tasty.Wai
   )
 
 main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Applied FP Course - Tests"
-      [ testWai Core.app "List Topics" $
-          get "fudge/view" >>= assertStatus' HTTP.status200,
-        testWai Core.app "Empty Input" $ do
-          resp <- post "fudge/add" ""
-          assertStatus' HTTP.status400 resp
-          assertBody "Empty Comment Text" resp
-      ]
+main = bracket Core.prepareAppReqs
+               (either (error . show) DB.closeDB)
+               (either (error . show) (\db ->
+                 defaultMain $
+                    testGroup
+                      "Applied FP Course - Tests"
+                      [ testWai (Core.app db) "List Topics" $
+                          get "fudge/view" >>= assertStatus' HTTP.status200,
+                        testWai (Core.app db) "Empty Input" $ do
+                          resp <- post "fudge/add" ""
+                          assertStatus' HTTP.status400 resp
+                          assertBody "Empty Comment" resp,
+                        testWai (Core.app db) "Add comment" $ do
+                          resp <- post "puppies/add" "Pug"
+                          assertStatus' HTTP.status200 resp
+                          assertBody "Success" resp,
+                        testWai (Core.app db) "View topic" $ do
+                          resp <- get "puppies/view"
+                          assertStatus' HTTP.status200 resp
+                      ]
+                ))

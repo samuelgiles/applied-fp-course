@@ -89,7 +89,7 @@ This might seem super wild, but if you take a moment, follow the types, and
 perhaps squint a bit. We're able to discern that:
 
 1) If we provide:
-  * some way of going from an `a` to a `b`: `(a -> b)` 
+  * some way of going from an `a` to a `b`: `(a -> b)`
   * and a `f b`
 
 2) We're able to create `f a` by applying the `(a -> b)` to the `a` so that we

@@ -1,5 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Level05.AppM
@@ -72,29 +74,30 @@ runAppM (AppM m) =
 
 instance Functor AppM where
   fmap :: (a -> b) -> AppM a -> AppM b
-  fmap = error "fmap for AppM not implemented"
+  fmap fab (AppM a) = AppM ((fmap . fmap) fab a)
 
 instance Applicative AppM where
   pure :: a -> AppM a
-  pure = error "pure for AppM not implemented"
+  pure = liftEither . pure
 
-  (<*>) :: AppM (a -> b) -> AppM a -> AppM b
-  (<*>) = error "spaceship for AppM not implemented"
+  (<*>) :: forall a b. AppM (a -> b) -> AppM a -> AppM b
+  (<*>) (AppM f) (AppM a) = AppM ((<*>) <$> f <*> a)
 
 instance Monad AppM where
-  (>>=) :: AppM a -> (a -> AppM b) -> AppM b
-  (>>=) = error "bind for AppM not implemented"
+  (>>=) :: forall a b. AppM a -> (a -> AppM b) -> AppM b
+  (>>=) (AppM a) f = AppM (a >>= either (pure . Left) (runAppM . f))
 
 instance MonadIO AppM where
   liftIO :: IO a -> AppM a
-  liftIO = error "liftIO for AppM not implemented"
+  liftIO = AppM . fmap pure
 
 instance MonadError Error AppM where
   throwError :: Error -> AppM a
-  throwError = error "throwError for AppM not implemented"
+  throwError = liftEither . Left
 
-  catchError :: AppM a -> (Error -> AppM a) -> AppM a
-  catchError = error "catchError for AppM not implemented"
+  catchError :: forall a . AppM a -> (Error -> AppM a) -> AppM a
+  catchError (AppM ioe) fea = AppM (either (runAppM . fea) (pure . pure) =<< ioe)
+
 
 -- This is a helper function that will `lift` an Either value into our new AppM
 -- by applying `throwError` to the Left value, and using `pure` to lift the
@@ -104,8 +107,7 @@ instance MonadError Error AppM where
 -- pure :: Applicative m => a -> m a
 --
 liftEither ::
+  forall a .
   Either Error a ->
   AppM a
-liftEither =
-  error "liftEither not implemented"
--- Go to 'src/Level05/DB.hs' next.
+liftEither = AppM . pure

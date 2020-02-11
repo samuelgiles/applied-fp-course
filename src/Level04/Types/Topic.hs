@@ -1,18 +1,25 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Level04.Types.Topic
   ( Topic,
     mkTopic,
     getTopic,
     encodeTopic,
+    getTopicAsText,
   )
 where
 
 import Data.Functor.Contravariant (contramap)
 import Data.Text (Text)
 import Level04.Types.Error (Error (EmptyTopic), nonEmptyText)
+import Database.SQLite.Simple.FromRow (FromRow (fromRow), field)
 import Waargonaut.Encode (Encoder)
 import qualified Waargonaut.Encode as E
 
-newtype Topic = Topic Text
+newtype Topic = Topic
+  {
+    getTopicAsText :: Text
+  }
   deriving (Show)
 
 mkTopic ::
@@ -58,6 +65,9 @@ getTopic (Topic t) =
 -- functions. There is a quick introduction to `Contravariant` in the `README`
 -- for this level.
 encodeTopic :: Applicative f => Encoder f Topic
-encodeTopic =
-  -- Try using 'contramap' and 'E.text'
-  error "topic JSON encoder not implemented"
+encodeTopic = E.mapLikeObj $ \topic ->
+  E.atKey' "name" E.text (getTopic topic)
+
+
+instance FromRow Topic where
+  fromRow = Topic <$> field

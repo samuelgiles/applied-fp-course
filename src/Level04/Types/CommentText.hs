@@ -1,7 +1,11 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Level04.Types.CommentText
   ( CommentText,
     mkCommentText,
     getCommentText,
+    getCommentTextAsText,
+    encodeCommentText,
   )
 where
 
@@ -14,7 +18,10 @@ import Level04.Types.Error
 import Waargonaut.Encode (Encoder)
 import qualified Waargonaut.Encode as E
 
-newtype CommentText = CommentText Text
+newtype CommentText = CommentText
+  {
+    getCommentTextAsText :: Text
+  }
   deriving (Show)
 
 mkCommentText ::
@@ -53,6 +60,5 @@ getCommentText (CommentText t) =
 -- functions. There is a quick introduction to `Contravariant` in the `README`
 -- for this level.
 encodeCommentText :: Applicative f => Encoder f CommentText
-encodeCommentText =
-  -- Try using 'contramap' and 'E.text'.
-  error "CommentText JSON encoder not implemented"
+encodeCommentText = E.mapLikeObj $ \commentText ->
+  E.atKey' "commentText" E.text (getCommentText commentText)

@@ -3,6 +3,7 @@
 module Level04.Conf
   ( Conf (..),
     firstAppConfig,
+    dbFilePath
   )
 where
 

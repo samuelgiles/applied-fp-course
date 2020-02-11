@@ -3,6 +3,7 @@ module Level05.Types.CommentText
     mkCommentText,
     getCommentText,
     encodeCommentText,
+    getCommentTextAsText,
   )
 where
 
@@ -15,7 +16,9 @@ import Level05.Types.Error
 import Waargonaut.Encode (Encoder)
 import qualified Waargonaut.Encode as E
 
-newtype CommentText = CommentText Text
+newtype CommentText = CommentText {
+    getCommentTextAsText :: Text
+  }
   deriving (Show)
 
 encodeCommentText :: Applicative f => Encoder f CommentText

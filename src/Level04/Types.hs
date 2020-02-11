@@ -15,6 +15,7 @@ module Level04.Types
     getCommentText,
     renderContentType,
     fromDBComment,
+    encodeComment
   )
 where
 
@@ -26,7 +27,7 @@ import Data.Text (Text, pack)
 import Data.Time (UTCTime)
 import qualified Data.Time.Format as TF
 import GHC.Generics (Generic)
-import Level04.DB.Types (DBComment)
+import Level04.DB.Types (DBComment, dbCommentId, dbCommentTopic, dbCommentBody, dbCommentTime)
 -- Notice how we've moved these types into their own modules. It's cheap and
 -- easy to add modules to carve out components in a Haskell application. So
 -- whenever you think that a module is too big, covers more than one piece of
@@ -36,13 +37,17 @@ import Level04.Types.CommentText
   ( CommentText,
     getCommentText,
     mkCommentText,
+    getCommentTextAsText,
   )
-import Level04.Types.Error (Error (EmptyCommentText, EmptyTopic, UnknownRoute))
-import Level04.Types.Topic (Topic, getTopic, mkTopic)
+import Level04.Types.Error (Error (EmptyCommentText, EmptyTopic, UnknownRoute, DBError))
+import Level04.Types.Topic (Topic, getTopicAsText, getTopic, mkTopic)
 import Waargonaut.Encode (Encoder)
 import qualified Waargonaut.Encode as E
 
-newtype CommentId = CommentId Int
+newtype CommentId = CommentId
+  {
+    commentIdToInt :: Int
+  }
   deriving (Eq, Show)
 
 -- | This is the `Comment` record that we will be sending to users, it's a
@@ -63,8 +68,11 @@ data Comment
 --
 -- 'https://hackage.haskell.org/package/waargonaut/docs/Waargonaut-Encode.html'
 encodeComment :: Applicative f => Encoder f Comment
-encodeComment =
-  error "Comment JSON encoder not implemented"
+encodeComment = E.mapLikeObj $ \comment ->
+  E.atKey' "id" encodeCommentId (commentId comment) .
+  E.atKey' "topic" encodeCommentTopic (commentTopic comment) .
+  E.atKey' "body" encodeCommentBody (commentBody comment) .
+  E.atKey' "time" encodeISO8601DateTime (commentTime comment)
 
 -- Tip: Use the 'encodeISO8601DateTime' to handle the UTCTime for us.
 
@@ -75,8 +83,16 @@ encodeComment =
 fromDBComment ::
   DBComment ->
   Either Error Comment
-fromDBComment =
-  error "fromDBComment not yet implemented"
+fromDBComment dbComment = do
+  topic <- mkTopic $ dbCommentTopic dbComment
+  body <- mkCommentText $ dbCommentBody dbComment
+
+  return Comment {
+    commentId = CommentId (dbCommentId dbComment),
+    commentTopic = topic,
+    commentBody = body,
+    commentTime = dbCommentTime dbComment
+  }
 
 data RqType
   = AddRq Topic CommentText
@@ -92,6 +108,15 @@ renderContentType ::
   ByteString
 renderContentType PlainText = "text/plain"
 renderContentType JSON = "application/json"
+
+encodeCommentId :: Applicative f => Encoder f CommentId
+encodeCommentId = commentIdToInt >$< E.int
+
+encodeCommentTopic :: Applicative f => Encoder f Topic
+encodeCommentTopic = getTopicAsText >$< E.text
+
+encodeCommentBody :: Applicative f => Encoder f CommentText
+encodeCommentBody = getCommentTextAsText >$< E.text
 
 encodeISO8601DateTime :: Applicative f => Encoder f UTCTime
 encodeISO8601DateTime = pack . TF.formatTime loc fmt >$< E.text
