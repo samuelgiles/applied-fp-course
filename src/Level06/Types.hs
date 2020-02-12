@@ -28,12 +28,14 @@ module Level06.Types
     renderContentType,
     confPortToWai,
     fromDBComment,
+    partialConfDecoder
   )
 where
 
 import Data.ByteString (ByteString)
 import Data.Functor.Contravariant ((>$<))
 import Data.List (stripPrefix)
+import Control.Exception (SomeException)
 import Data.Maybe (fromMaybe)
 import Data.Semigroup (Last (..), Semigroup ((<>)))
 import Data.Text (Text, pack)
@@ -153,7 +155,7 @@ newtype DBFilePath
 -- Add some fields to the ``Conf`` type:
 -- - A customisable port number: ``Port``
 -- - A filepath for our SQLite database: ``DBFilePath``
-data Conf = Conf
+data Conf = Conf { getConfPort :: Port, getConfDBFilePath :: DBFilePath }
 
 -- We're storing our Port as a Word16 to be more precise and prevent invalid
 -- values from being used in our application. However Wai is not so stringent.
@@ -168,13 +170,16 @@ data Conf = Conf
 confPortToWai ::
   Conf ->
   Int
-confPortToWai =
-  error "confPortToWai not implemented"
+confPortToWai conf =
+  fromIntegral $ getPort $ getConfPort conf
+
 
 -- Similar to when we were considering our application types. We can add to this sum type
 -- as we build our application and the compiler can help us out.
 data ConfigError
   = BadConfFile DecodeError
+  | ConfigFileLoadError SomeException
+  | IncompleteConfError ByteString
   deriving (Show)
 
 -- Our application will be able to load configuration from both a file and
@@ -209,10 +214,10 @@ data PartialConf
 -- We need to define a ``Semigroup`` instance for ``PartialConf``. We define our ``(<>)``
 -- function to lean on the ``Semigroup`` instance for Last to always get the last value.
 instance Semigroup PartialConf where
-  _a <> _b =
+  a <> b =
     PartialConf
-      { pcPort = error "pcPort (<>) not implemented",
-        pcDBFilePath = error "pcDBFilePath (<>) not implemented"
+      { pcPort = (pcPort a <> pcPort b),
+        pcDBFilePath = (pcDBFilePath a <> pcDBFilePath b)
       }
 
 -- | When it comes to reading the configuration options from the command-line, we
@@ -225,5 +230,16 @@ instance Semigroup PartialConf where
 -- have to tell waargonaut how to go about converting the JSON into our PartialConf
 -- data structure.
 partialConfDecoder :: Monad f => Decoder f PartialConf
-partialConfDecoder = error "PartialConf Decoder not implemented"
+partialConfDecoder = D.withCursor $ \curs -> do
+  io <- D.down curs
+  PartialConf
+    <$> D.fromKey "port" decodePort io
+    <*> D.fromKey "dbName" decodeDBFilePath io
+
+decodePort :: Monad f => Decoder f (Maybe (Last Port))
+decodePort = (\int -> pure (pure $ Port $ fromIntegral int)) <$> D.int
+
+decodeDBFilePath :: Monad f => Decoder f (Maybe (Last DBFilePath))
+decodeDBFilePath = (\str -> pure (pure $ DBFilePath str)) <$> D.string
+
 -- Go to 'src/Level06/Conf/File.hs' next

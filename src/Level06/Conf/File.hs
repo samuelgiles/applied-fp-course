@@ -2,16 +2,19 @@
 
 module Level06.Conf.File where
 
-import Control.Exception (try)
+import Control.Exception (try, Exception, SomeException)
+import           Control.Monad.IO.Class
 import qualified Data.Attoparsec.ByteString as AB
 import Data.Bifunctor (first)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import Data.Monoid (Last (Last))
 import Data.Text (Text, pack)
-import Level06.AppM (AppM (runAppM))
+import Level06.AppM (AppM (runAppM), liftEither)
 import Level06.Types
-  ( ConfigError (BadConfFile),
+  ( ConfigError (..),
     PartialConf (PartialConf),
+    partialConfDecoder,
   )
 import Waargonaut (Json)
 import qualified Waargonaut.Decode as D
@@ -32,21 +35,14 @@ import Waargonaut.Decode.Error (DecodeError (ParseFailed))
 readConfFile ::
   FilePath ->
   AppM ConfigError ByteString
-readConfFile =
-  -- Reading a file may throw an exception for any number of
-  -- reasons. Use the 'try' function from 'Control.Exception' to catch
-  -- the exception and turn it into an error value that is thrown as
-  -- part of our 'AppM' transformer.
-  --
-  -- No exceptions from reading the file should escape this function.
-  --
-  error "readConfFile not implemented"
+readConfFile fp =
+  liftIO (try $ BS.readFile fp) >>= liftEither . first ConfigFileLoadError
+
 
 -- | Construct the function that will take a ``FilePath``, read it in, decode it,
 -- and construct our ``PartialConf``.
 parseJSONConfigFile ::
   FilePath ->
   AppM ConfigError PartialConf
-parseJSONConfigFile =
-  error "parseJSONConfigFile not implemented"
--- Go to 'src/Level06/Conf.hs' next.
+parseJSONConfigFile fp =
+   readConfFile fp >>= liftEither . first (BadConfFile . fst) . D.pureDecodeFromByteString AB.parseOnly partialConfDecoder

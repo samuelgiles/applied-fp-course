@@ -7,18 +7,19 @@ module Level06.Conf
 where
 
 import Data.Bifunctor (first)
-import Data.Monoid ((<>))
+import Data.Semigroup (Last (..), Semigroup ((<>)))
 import GHC.Word (Word16)
-import Level06.AppM (AppM)
+import Level06.AppM (AppM, liftEither)
 import Level06.Conf.CommandLine (commandLineParser)
 import Level06.Conf.File (parseJSONConfigFile)
 import Level06.Types
-  ( Conf,
-    ConfigError,
+  ( Conf(..),
+    ConfigError(..),
     DBFilePath (DBFilePath),
-    PartialConf,
+    PartialConf(..),
     Port (Port),
   )
+import           Control.Monad.IO.Class
 
 -- | For the purposes of this application we will encode some default values to
 -- ensure that our application continues to function in the event of missing
@@ -26,7 +27,10 @@ import Level06.Types
 defaultConf ::
   PartialConf
 defaultConf =
-  error "defaultConf not implemented"
+  PartialConf {
+    pcPort = Just (Last $ Port 3000),
+    pcDBFilePath = Just (Last $ DBFilePath "app_db.db")
+  }
 
 -- | We need something that will take our PartialConf and see if can finally build
 -- a complete ``Conf`` record. Also we need to highlight any missing values by
@@ -34,8 +38,19 @@ defaultConf =
 makeConfig ::
   PartialConf ->
   Either ConfigError Conf
-makeConfig =
-  error "makeConfig not implemented"
+makeConfig partialConf =
+    case (maybePort, maybeDBFilePath) of
+      (Just (Last port), Just (Last dbFilePath)) ->
+        Right $ Conf port dbFilePath
+      (Nothing, Just (Last _dbFilePath)) ->
+        Left $ IncompleteConfError "Missing port"
+      (Just (Last _port), Nothing) ->
+        Left $ IncompleteConfError "Missing DB file path"
+      (Nothing, Nothing) ->
+        Left $ IncompleteConfError "Missing port and DB file path"
+  where
+    maybePort = pcPort partialConf
+    maybeDBFilePath = pcDBFilePath partialConf
 
 -- | This is the function we'll actually export for building our configuration.
 -- Since it wraps all our efforts to read information from the command line, and
@@ -49,9 +64,12 @@ makeConfig =
 parseOptions ::
   FilePath ->
   AppM ConfigError Conf
-parseOptions =
-  -- Parse the options from the config file: "files/appconfig.json"
-  -- Parse the options from the commandline using 'commandLineParser'
-  -- Combine these with the default configuration 'defaultConf'
-  -- Return the final configuration value
-  error "parseOptions not implemented"
+parseOptions fp =
+  getPartialConfig >>= liftEither . makeConfig
+  where
+    getPartialConfig :: AppM ConfigError PartialConf
+    getPartialConfig = getFileConfig >>= (\fileConfig -> getCommandLine >>= (\commandLineConfig -> pure $ defaultConf <> fileConfig <> commandLineConfig))
+    getFileConfig :: AppM ConfigError PartialConf
+    getFileConfig = parseJSONConfigFile fp
+    getCommandLine :: AppM ConfigError PartialConf
+    getCommandLine = liftIO commandLineParser

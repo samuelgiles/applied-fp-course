@@ -40,8 +40,9 @@ module Main where
 -- This import is provided for you so you can check your work from Level02. As
 -- you move forward, come back and import your latest 'Application' so that you
 -- can test your work as you progress.
-import qualified Level05.Core as Core
-import qualified Level05.DB as DB
+import qualified Level06.AppM as AppM
+import qualified Level06.Core as Core
+import qualified Level06.DB as DB
 import Data.Either
   ( either,
   )
@@ -57,23 +58,23 @@ import Test.Tasty.Wai
   )
 
 main :: IO ()
-main = bracket Core.prepareAppReqs
-               (either (error . show) DB.closeDB)
-               (either (error . show) (\db ->
+main = bracket (AppM.runAppM Core.prepareAppReqs)
+               (either (error . show) (DB.closeDB . snd))
+               (either (error . show) (\(conf, db) ->
                  defaultMain $
                     testGroup
                       "Applied FP Course - Tests"
-                      [ testWai (Core.app db) "List Topics" $
+                      [ testWai (Core.app conf db) "List Topics" $
                           get "fudge/view" >>= assertStatus' HTTP.status200,
-                        testWai (Core.app db) "Empty Input" $ do
+                        testWai (Core.app conf db) "Empty Input" $ do
                           resp <- post "fudge/add" ""
                           assertStatus' HTTP.status400 resp
                           assertBody "Empty Comment" resp,
-                        testWai (Core.app db) "Add comment" $ do
+                        testWai (Core.app conf db) "Add comment" $ do
                           resp <- post "puppies/add" "Pug"
                           assertStatus' HTTP.status200 resp
                           assertBody "Success" resp,
-                        testWai (Core.app db) "View topic" $ do
+                        testWai (Core.app conf db) "View topic" $ do
                           resp <- get "puppies/view"
                           assertStatus' HTTP.status200 resp
                       ]
